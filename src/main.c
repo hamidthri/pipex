@@ -6,7 +6,7 @@
 /*   By: htaheri <htaheri@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/08/30 18:56:28 by htaheri           #+#    #+#             */
-/*   Updated: 2023/09/08 14:26:32 by htaheri          ###   ########.fr       */
+/*   Updated: 2023/09/19 17:57:27 by htaheri          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -28,45 +28,59 @@ void	exec(char *arg, char **envp)
 	}
 }
 
-void	child_process(int fd[], char **argv, char **envp)
+void	child_process(int infile, int fd[], char **argv, char **envp)
 {
-	int		infile;
-
-	infile = open(argv[1], O_RDONLY);
-	if (infile < 0)
-		return ;
 	dup2(infile, STDIN_FILENO);
 	dup2(fd[1], STDOUT_FILENO);
+	close(infile);
 	close(fd[0]);
+	close(fd[1]);
 	exec(argv[2], envp);
 }
 
-void	parent_process(int fd[], char **argv, char **envp)
+void	parent_process(int outfile, int fd[], char **argv, char **envp)
 {
-	int		outfile;
+	pid_t	pid2;
 
-	outfile = open(argv[4], O_CREAT | O_RDWR | O_TRUNC, 0644);
-	if (outfile < 0)
-		return ;
-	dup2(outfile, STDOUT_FILENO);
-	dup2(fd[0], STDIN_FILENO);
+	pid2 = fork();
+	if (pid2 == -1)
+		exit(-1);
+	if (!pid2)
+	{
+		dup2(outfile, STDOUT_FILENO);
+		dup2(fd[0], STDIN_FILENO);
+		close (fd[1]);
+		exec(argv[3], envp);
+	}
+	close(outfile);
 	close (fd[1]);
-	exec(argv[3], envp);
+	waitpid(pid2, NULL, 0);
 }
 
 int	main(int argc, char **argv, char **envp)
 {
 	int		fd[2];
 	pid_t	pid;
+	int		outfile;
+	int		infile;
 
 	if (argc != 5)
-		error_message("NOT ENOUGH ARGUMENTS");
+		error_message("NOT ENOUGH ARGS");
+	infile = open(argv[1], O_RDONLY);
+	outfile = open(argv[4], O_CREAT | O_RDWR | O_TRUNC, 0644);
+	if (infile < 0 || outfile < 0)
+		return (-1);
 	if (pipe(fd) == -1)
 		exit(-1);
 	pid = fork();
 	if (pid == -1)
 		exit(-1);
 	if (!pid)
-		child_process(fd, argv, envp);
-	parent_process(fd, argv, envp);
+		child_process(infile, fd, argv, envp);
+	else
+	{
+		parent_process(outfile, fd, argv, envp);
+		waitpid(pid, NULL, 0);
+	}
+	return (EXIT_SUCCESS);
 }

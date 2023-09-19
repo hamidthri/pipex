@@ -6,7 +6,7 @@
 /*   By: htaheri <htaheri@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/09/07 15:03:30 by htaheri           #+#    #+#             */
-/*   Updated: 2023/09/08 19:56:19 by htaheri          ###   ########.fr       */
+/*   Updated: 2023/09/12 17:53:52 by htaheri          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,7 +62,7 @@ void	here_doc(char **argv)
 	char	*line;
 	int		fd;
 
-	fd = open("temp", O_WRONLY | O_CREAT, 0777);
+	fd = open("temp", O_WRONLY | O_CREAT, 0644);
 	while (1)
 	{
 		line = get_next_line(STDIN_FILENO);
@@ -78,25 +78,28 @@ void	here_doc(char **argv)
 
 void	do_here_doc(int argc, char **argv, char **envp)
 {
-	int		outfile;
-	int		i;
 	int		first;
+	int		outfile;
+	int		pid;
+	int		i;
 
-	outfile = open(argv[argc - 1], O_CREAT | O_WRONLY | O_APPEND, 0777);
+	outfile = open(argv[argc - 1], O_CREAT | O_WRONLY | O_APPEND, 0644);
 	first = open("temp", O_CREAT | O_RDWR, 0777);
 	here_doc(argv);
 	i = 1;
 	while (i < argc - 4)
+		first = consecutive_pipe(i++, first, argv, envp);
+	unlink ("temp");
+	pid = fork();
+	if (pid == 0)
 	{
-		first = consecutive_pipe(i, first, argv, envp);
-		i++;
+		dup2(first, STDIN_FILENO);
+		dup2(outfile, STDOUT_FILENO);
+		do_exec(argv[argc - 2], envp);
 	}
-	dup2(outfile, STDOUT_FILENO);
-	dup2(first, STDIN_FILENO);
 	close(first);
 	close (outfile);
-	remove ("temp");
-	do_exec(argv[argc - 2], envp);
+	waitpid(pid, NULL, 0);
 }
 
 int	main(int argc, char **argv, char **envp)
@@ -111,5 +114,5 @@ int	main(int argc, char **argv, char **envp)
 	}
 	else
 		do_pipe(argc, argv, envp);
-	return (0);
+	return (EXIT_SUCCESS);
 }
